@@ -12,7 +12,7 @@ library(dplyr)          # manipula dados
 library(tidyr)          # manipula dados (funcao pivot_longer)
 library(ggplot2)        # gera gráficos
 library(patchwork)      # unir gráficos
-library(corrplot)       # mapa de Correlação
+library(corrplot)       # mapa de correlação
 library(caret)          # pacote preProcess para normalização
 
 library(randomForest)   # algoritmo de ML
@@ -57,4 +57,77 @@ library(randomForest)   # algoritmo de ML
 
 #### Carregando os Dados
 
+df <- data.frame(read.csv2("dados/dataset.csv", sep = ","))
+
+dim(df)
+names(df)
+head(df)
+
+
+
+#### Análise Exploratória
+
+# Tipo de dados
+str(df)
+
+# Converter todas as colunas para numeric, exceto 'Gender'  (ficar igual ao código em Python)
+df <- df %>%
+  mutate(across(-Gender, as.numeric))
+
+
+# Atualizar valores na coluna 'Dataset' (valor '2' = '0') e renomear para 'Target'
+df <- df %>%
+mutate(Dataset = if_else(Dataset == 2, 0, Dataset)) %>%
+  rename(Target = Dataset)
+
+
+# Conveter para Factor Variável Gender e Target (variável alvo)
+df <- df %>% 
+  mutate(Gender = as.factor(Gender),
+         Target = as.factor(Target))
+
+
+## Dividindo dataset em variáveis numéricas e categóricas
+df_num <- df %>% 
+  select(where(is.numeric))
+df_cat <- df %>% 
+  select(where(is.factor))
+
+
+
+### Explorando Variáveis Numéricas
+
+# Sumário Estatístico
+summary(df_num)
+
+
+## Visualizando Através de Gráficos
+
+# Converter o dataframe para um formato longo para facilitar a plotagem com ggplot2
+df_long <- pivot_longer(df_num, cols = everything())
+
+# Criar histogramas usando ggplot2
+ggplot(df_long, aes(x = value)) +
+  geom_histogram(bins = 10, fill = "blue", color = "black") +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Value", y = "Frequency") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Melhorar a legibilidade dos rótulos do eixo x
+
+
+# Interpretando
+
+# - Parece que há outlier nas variáveis "Alamine_Aminotransferase" e "Aspartate_Aminotransferase", pois o valor máximo é muito mais alto que o valor médio.
+
+
+## Correlação
+cor(df_num, use = "complete.obs")
+
+# Criar um mapa de calor da matriz de correlação
+corrplot(cor(df_num, use = "complete.obs"),
+         method = "color",
+         type = "upper",
+         addCoef.col = 'springgreen2',
+         tl.col = "black",
+         tl.srt = 45)                                             # Esconde a diagonal principal
 
