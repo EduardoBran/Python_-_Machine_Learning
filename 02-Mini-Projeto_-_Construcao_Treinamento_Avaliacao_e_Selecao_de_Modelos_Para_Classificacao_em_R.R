@@ -70,7 +70,10 @@ head(df)
 # Tipo de dados
 str(df)
 
-# Converter todas as colunas para numeric, exceto 'Gender'  (ficar igual ao código em Python)
+
+## Aplicando Transformações Iniciais
+
+# Converter todas as colunas para numeric, exceto 'Gender' (ficar igual ao código em Python)
 df <- df %>%
   mutate(across(-Gender, as.numeric))
 
@@ -81,13 +84,64 @@ mutate(Dataset = if_else(Dataset == 2, 0, Dataset)) %>%
   rename(Target = Dataset)
 
 
-# Conveter para Factor Variável Gender e Target (variável alvo)
+# Conveter para Factor as Variáveis Gender e Target(variável alvo)
 df <- df %>% 
   mutate(Gender = as.factor(Gender),
          Target = as.factor(Target))
 
 
-## Dividindo dataset em variáveis numéricas e categóricas
+
+## Realizando Análise Inicial (Sumário Estatístico, Veriricação de Valores NA, '' e especiais)
+
+analise_inicial <- function(dataframe_recebido) {
+  # Sumário
+  cat("\n\n####  DIMENSÕES  ####\n\n")
+  print(dim(dataframe_recebido))
+  cat("\n\n\n####  INFO  ####\n\n")
+  print(str(dataframe_recebido))
+  cat("\n\n\n####  SUMÁRIO  ####\n\n")
+  print(summary(dataframe_recebido))
+  cat("\n\n\n####  VERIFICANDO QTD DE LINHAS DUPLICADAS  ####\n\n")
+  print(sum(duplicated(dataframe_recebido)))
+  cat("\n\n\n####  VERIFICANDO VALORES NA  ####\n\n")
+  valores_na <- colSums(is.na(dataframe_recebido))
+  if(any(valores_na > 0)) {
+    cat("\n-> Colunas com valores NA:\n\n")
+    print(valores_na[valores_na > 0])
+  } else {
+    cat("\n-> Não foram encontrados valores NA.\n")
+  }
+  cat("\n\n\n####  VERIFICANDO VALORES VAZIOS ''  ####\n\n")
+  valores_vazios <- sapply(dataframe_recebido, function(x) sum(x == "", na.rm = TRUE)) # Adicionando na.rm = TRUE
+  if(any(valores_vazios > 0, na.rm = TRUE)) { # Tratamento de NA na condição
+    cat("\n-> Colunas com valores vazios \"\":\n\n")
+    print(valores_vazios[valores_vazios > 0])
+  } else {
+    cat("\n-> Não foram encontrados valores vazios \"\".\n")
+  }
+  cat("\n\n\n####  VERIFICANDO VALORES COM CARACTERES ESPECIAIS  ####\n\n")
+  caracteres_especiais <- sapply(dataframe_recebido, function(x) {
+    sum(sapply(x, function(y) {
+      if(is.character(y) && length(y) == 1) {
+        any(charToRaw(y) > 0x7E | charToRaw(y) < 0x20)
+      } else {
+        FALSE
+      }
+    }))
+  })
+  if(any(caracteres_especiais > 0)) {
+    cat("\n-> Colunas com caracteres especiais:\n\n")
+    print(caracteres_especiais[caracteres_especiais > 0])
+  } else {
+    cat("\n-> Não foram encontrados caracteres especiais.\n")
+  }
+}
+
+analise_inicial(df)
+
+
+
+## Dividindo dataset em variáveis numéricas e categóricas (para criação de gráficos)
 df_num <- df %>% 
   select(where(is.numeric))
 df_cat <- df %>% 
@@ -115,12 +169,39 @@ ggplot(df_long, aes(x = value)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Melhorar a legibilidade dos rótulos do eixo x
 
 
-# Interpretando
+# Interpretando sumário e gráficos:
 
 # - Parece que há outlier nas variáveis "Alamine_Aminotransferase" e "Aspartate_Aminotransferase", pois o valor máximo é muito mais alto que o valor médio.
 
 
-## Correlação
+
+
+### Explorando Variável Categórica
+
+str(df_cat)
+summary(df_cat)
+plot(df$Gender)
+plot(df$Target)
+
+
+## Aplicando Label Encoding na Variável 'Gender' e 'Target' (no dataframe original df)
+
+str(df)
+
+# Cria uma Nova Variável 'Gender_Num' onde Male = 0 e Female = 1
+df$Gender_Num <- ifelse(df$Gender == "Male", 0, 1)
+
+# Converte fatores para caracteres e depois para numéricos
+df$Target <- as.numeric(as.character(df$Target))
+
+str(df)
+
+
+
+## Verificando Correlação
+
+df_num <- df %>% 
+  select(-Gender)
 cor(df_num, use = "complete.obs")
 
 # Criar um mapa de calor da matriz de correlação
@@ -129,5 +210,89 @@ corrplot(cor(df_num, use = "complete.obs"),
          type = "upper",
          addCoef.col = 'springgreen2',
          tl.col = "black",
-         tl.srt = 45)                                             # Esconde a diagonal principal
+         tl.srt = 45)                                     # Esconde a diagonal principal
+
+
+## Interpretando o resultado da Correlação
+
+# - Vamos citar exemplo:
+#   Podemos constatar no dados e gráfico que a variável Total_Bilirubin tem uma alta correlação positiva com a variável Direct_Bilirubin (0.87).
+# - Isso é um problema pois a mesma informação está sendo replicada duas vezes e por conta disso pode deixar o modelo tendencioso.
+# - O fato de duas variáveis estarem altamente relacionadas (quando tem o valor abaixo ou acima de 0.70) é chamado de Multicolinearidade. 
+# - Em algum momento deveremos tomar uma decisão: deixar as duas variáveis, remover uma variável ou remover as duas.
+
+## Atenção
+
+# - Nosso dados ainda não foram limpos/tratados (valores ausentes, replicados ou outliers). É recomendado aplicar algum tipo de tratamento relacionado a Multicolinearidade somente quando os dados estiverem tratados.
+# - Estamos na etapa de Análise Exploratória onde estamos entendendo a natureza dos nossos dados.
+
+
+## Verificando Relação entre Atributs
+
+## Verificando Através de Gráfico a Relação entre as Variáveis 'Direct_Bilirubin' e 'Total_Bilirubin' por 'Target'
+ggplot(df, aes(x = Total_Bilirubin, y = Direct_Bilirubin, color = as.factor(Target))) +
+  geom_point(alpha = 0.6, size = 3) +  # Pontos semitransparentes e de tamanho moderado
+  scale_color_manual(values = c("blue", "red")) +  # Cores para diferentes Targets
+  labs(color = "Target") +  # Legenda
+  theme_minimal(base_size = 14) +  # Usando um tema minimalista para o background
+  theme(
+    plot.background = element_rect(fill = "grey90"),  # Cor de fundo do plot
+    panel.background = element_rect(fill = "grey90", colour = "grey20", size = 0.5, linetype = "solid"),
+    panel.grid.major = element_line(size = 0.5, linetype = 'solid', colour = "grey60"),  # Linhas principais da grade
+    panel.grid.minor = element_line(size = 0.25, linetype = 'solid', colour = "grey80")  # Linhas secundárias da grade
+  ) +
+  labs(title = "Relação entre Total Bilirubin e Direct Bilirubin", x = "Total Bilirubin", y = "Direct Bilirubin")
+
+
+## Verificando Através de Gráfico a Relação entre as Variáveis 'Direct_Bilirubin' e 'Total_Bilirubin' por 'Gender'
+ggplot(df, aes(x = Total_Bilirubin, y = Direct_Bilirubin, color = as.factor(Gender))) +
+  geom_point(alpha = 0.6, size = 3) +  # Pontos semitransparentes e de tamanho moderado
+  scale_color_manual(values = c("blue", "red")) +  # Cores para diferentes Targets
+  labs(color = "Gender") +  # Legenda
+  theme_minimal(base_size = 14) +  # Usando um tema minimalista para o background
+  theme(
+    plot.background = element_rect(fill = "grey90"),  # Cor de fundo do plot
+    panel.background = element_rect(fill = "grey90", colour = "grey20", size = 0.5, linetype = "solid"),
+    panel.grid.major = element_line(size = 0.5, linetype = 'solid', colour = "grey60"),  # Linhas principais da grade
+    panel.grid.minor = element_line(size = 0.25, linetype = 'solid', colour = "grey80")  # Linhas secundárias da grade
+  ) +
+  labs(title = "Relação entre Total Bilirubin e Direct Bilirubin", x = "Total Bilirubin", y = "Direct Bilirubin")
+
+
+## Verificando Através de Gráfico a Relação entre as Variáveis 'Albumin' e 'Total_Bilirubin' por 'Target'
+ggplot(df, aes(x = Total_Bilirubin, y = Albumin, color = as.factor(Target))) +
+  geom_point(alpha = 0.6, size = 3) +  # Pontos semitransparentes e de tamanho moderado
+  scale_color_manual(values = c("blue", "red")) +  # Cores para diferentes Targets
+  labs(color = "Target") +  # Legenda
+  theme_minimal(base_size = 14) +  # Usando um tema minimalista para o background
+  theme(
+    plot.background = element_rect(fill = "grey90"),  # Cor de fundo do plot
+    panel.background = element_rect(fill = "grey90", colour = "grey20", size = 0.5, linetype = "solid"),
+    panel.grid.major = element_line(size = 0.5, linetype = 'solid', colour = "grey60"),  # Linhas principais da grade
+    panel.grid.minor = element_line(size = 0.25, linetype = 'solid', colour = "grey80")  # Linhas secundárias da grade
+  ) +
+  labs(title = "Relação entre Total Bilirubin e Albumin", x = "Total Bilirubin", y = "Albumin")
+
+
+## Verificando Através de Gráfico a Relação entre as Variáveis 'Albumin' e 'Total_Bilirubin' por 'Gender'
+ggplot(df, aes(x = Total_Bilirubin, y = Albumin, color = as.factor(Gender))) +
+  geom_point(alpha = 0.6, size = 3) +  # Pontos semitransparentes e de tamanho moderado
+  scale_color_manual(values = c("blue", "red")) +  # Cores para diferentes Targets
+  labs(color = "Gender") +  # Legenda
+  theme_minimal(base_size = 14) +  # Usando um tema minimalista para o background
+  theme(
+    plot.background = element_rect(fill = "grey90"),  # Cor de fundo do plot
+    panel.background = element_rect(fill = "grey90", colour = "grey20", size = 0.5, linetype = "solid"),
+    panel.grid.major = element_line(size = 0.5, linetype = 'solid', colour = "grey60"),  # Linhas principais da grade
+    panel.grid.minor = element_line(size = 0.25, linetype = 'solid', colour = "grey80")  # Linhas secundárias da grade
+  ) +
+  labs(title = "Relação entre Total Bilirubin e Albumin", x = "Total Bilirubin", y = "Albumin")
+
+
+
+#### Conclusões da Análise Exploratória
+
+# - A análise exploratória ajudou a entender a natureza dos dados, preparando o caminho para limpeza de dados e análises mais profundas.
+# - Identificou-se a necessidade de tratar valores ausentes e possíveis outliers.
+# - A análise de correlação destacou a presença de multicolinearidade, que pode afetar a performance de modelos de aprendizado de máquina.
 
