@@ -296,3 +296,37 @@ ggplot(df, aes(x = Total_Bilirubin, y = Albumin, color = as.factor(Gender))) +
 # - Identificou-se a necessidade de tratar valores ausentes e possíveis outliers.
 # - A análise de correlação destacou a presença de multicolinearidade, que pode afetar a performance de modelos de aprendizado de máquina.
 
+
+
+
+
+#### Verfificando e Tratando Valores Ausentes, Replicados e Outliers
+
+analise_inicial(df)
+
+
+## Tratando Valores Ausentes
+
+# Exibindo as linhas com valores ausentes
+df %>% filter(is.na(Albumin_and_Globulin_Ratio))
+
+# Removendo todas linhas com valores ausentes
+df <- df %>% drop_na()
+
+
+## Tratando Valores Duplicados
+
+# Exibindo as linhas com valores duplicados
+df %>% filter(duplicated(.))
+
+# Removendo linhas duplicadas (remove uma das duplicatas)
+df <- df %>% 
+  distinct()
+
+
+## Tratando Valores Outliers
+
+# - Irá ser apresentado dois casos e tomaremos decisões diferentes para cada um deles.
+
+
+
