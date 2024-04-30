@@ -324,9 +324,83 @@ df <- df %>%
   distinct()
 
 
+
 ## Tratando Valores Outliers
 
-# - Irá ser apresentado dois casos e tomaremos decisões diferentes para cada um deles.
+# - Irá ser apresentado dois cenários e tomaremos decisões diferentes para cada um deles.
+
+
+## Cenário 1 (Variável 'Alamine_Aminotransferase')
+
+# Sumário
+summary(df$Alamine_Aminotransferase)
+
+# - Através do sumário, podemos observar que a variável possui uma média de 80.14 e um valor máx de 2000. Isso é um sinal de que podemos ter um outlier.
+# - Podemos checar esta informação através da criação de um Gráfico BoxPlot.
+
+
+# Gráfico BoxPLot
+ggplot(df, aes(y = Alamine_Aminotransferase)) +
+  geom_boxplot(fill = "blue", colour = "black") +
+  labs(title = "Boxplot de Alamine Aminotransferase", y = "Alamine Aminotransferase") +
+  theme_minimal()  # Aplicando um tema minimalista
+
+# Interpretando o Gráfico
+
+# - Podemos verificar que além do valor de 2000 temos outros diversos valores acima da média (que está próxima de zero).
+# - Será que os valores extremos são mesmo outliers para esta variável?
+  
+# Podemos responder isso verificando contagem de frequência por valor abaixo (filtrando os 5 maiores valores):
+
+
+# Exibindo os cinco maiores valores únicos e suas frequências:
+table(df$Alamine_Aminotransferase)[as.character(sort(unique(df$Alamine_Aminotransferase), decreasing = TRUE)[1:5])]
+
+
+# Conclusão
+
+# - Após a análise detalhada da variável 'Alamine_Aminotransferase', identificamos que o valor máximo de 2000 é consideravelmente mais alto que os outros
+#   valores próximos, que também são altos mas menos frequentes.
+# - Esses valores extremos podem ser considerados outliers devido ao seu afastamento significativo da média e mediana, além de serem raros no dataset,
+#   como mostrado pela análise de frequência.
+
+# - Dado esse contexto, é sugerido a avaliação de tratamento desses outliers dentro do cenário de aplicação dos dados. Se estes valores são resultantes de
+#   erros de medição ou casos muito atípicos que podem distorcer análises estatísticas, a remoção ou substituição por um limite superior calculado pelo
+#   método do IQR é recomendada.
+# - Contudo, se esses altos valores representam casos válidos dentro da pesquisa ou aplicação prática dos dados, poderiam ser mantidos, mas com uma análise
+#   adicional para confirmar sua validade.
+
+# - Portanto neste caso específico, após verificar a validade dos dados, optou-se por não realizar o tratamento de outliers para esta variável, pois eles
+#   representam casos autênticos dentro do contexto estudado.
 
 
 
+## Cenário 2 (Variável 'Aspartate_Aminotransferase')
+
+# Sumário
+summary(df$Aspartate_Aminotransferase)
+
+# - Através do Sumário podemos observar que a variável possui uma média de 109.89 e um valor máx de 4929. Isso é um sinal de que podemos ter um ou mais
+#   valores outlier.
+# - Vamos novamente verificar por um Gráfico BoxPlot.
+
+# Gráfico BoxPLot
+ggplot(df, aes(y = Aspartate_Aminotransferase)) +
+  geom_boxplot(fill = "blue", colour = "black") +
+  labs(title = "Boxplot de Aspartate Aminotransferase", y = "Aspartate Aminotransferase") +
+  theme_minimal()  # Aplicando um tema minimalista
+
+# Interpretando o gráfico
+
+# - Podemos verificar que novamente temos valores outliers, mas com um comportamente diferente. Parece que temos menos dados com valores extremos.
+# - E neste caso, ss valores extremos são mesmo outliers para esta variável?
+  
+# Podemos responder isso verificando novamente os maiores valores únicos e suas frequências:
+
+# Exibindo os cinco maiores valores únicos e suas frequências:
+table(df$Aspartate_Aminotransferase)[as.character(sort(unique(df$Aspartate_Aminotransferase), decreasing = TRUE)[1:5])]
+
+
+# Conclusão
+
+# - 
