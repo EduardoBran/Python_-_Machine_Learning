@@ -441,6 +441,22 @@ dim(df)
 
 
 
+#### RESUMO
+
+# - Antes de avançarmos para a etapa final de pré-processamento de dados, crucial para a construção de modelos de machine learning, vamos recapitular
+#   os passos já concluídos no projeto.:
+  
+#  -> Primeiro foi definido o problema de negócio para saber o objetivo e o que temos que resolver.
+#  -> Depois nós extraímos os dados e nesta etapa pode ser que tenhamos o suporte de um Engenheiro de Dados. No caso deste projeto foi feito a leitura dos
+#     dados através de um arquivo csv.
+#  -> Na sequência foi feita a Análise Exploratória onde nós verificamos padrões, detectamos problemas, identifica coisas que precisamos fazer.
+#  -> Após isso é aplicado a Limpeza de Dados de acordo com as técnicas necessárias, estratégias e decisões.
+#  -> Sempre lembrar de documentar tudo o que foi feito em cada atividade.
+
+
+
+
+
 #### Pré-Processamento de Dados Para Construção de Modelos de Machine Learning¶
 
 # - Como vimos anteriormente ao aplicarmos o mapa de correlação as variáveis 'Direct_Bilirubin' e 'Total_Bilirubin' possuem uma alta correlação.
