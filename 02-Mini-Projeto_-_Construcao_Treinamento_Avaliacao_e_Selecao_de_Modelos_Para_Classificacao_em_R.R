@@ -463,9 +463,21 @@ dim(df)
 # - Com isso foi tomada a decisão de remover umas das variáveis.
 
 # Removendo Variável 'Direct_Bilirubin'
+df <- df %>% 
+  select(-Direct_Bilirubin)
+
+
+##  Dividindo os dados em treino e teste
+
+set.seed(100)
+indices <- createDataPartition(df$Target, p = 0.75, list = FALSE)
+dados_treino <- df[indices, ]
+dados_teste <- df[-indices, ]
+rm(indices)
 
 
 
+## 
 
 
 
