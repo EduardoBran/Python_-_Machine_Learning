@@ -305,13 +305,11 @@ ggplot(df, aes(x = Total_Bilirubin, y = Albumin, color = as.factor(Gender))) +
 analise_inicial(df)
 
 
-## Tratando Valores Ausentes
+## Verificando Valores Ausentes (o tratamento é aconselhado após tratamento dos valores outliers)
 
 # Exibindo as linhas com valores ausentes
 df %>% filter(is.na(Albumin_and_Globulin_Ratio))
 
-# Removendo todas linhas com valores ausentes
-df <- df %>% drop_na()
 
 
 ## Tratando Valores Duplicados
@@ -403,4 +401,55 @@ table(df$Aspartate_Aminotransferase)[as.character(sort(unique(df$Aspartate_Amino
 
 # Conclusão
 
-# - 
+# - Vamos aplicar um tratamento para limpeza de outlier nesta variável.
+# - Iremos manter no dataset todos os registros abaixo do valor 2500 para esta variável.
+
+
+# Tratando Valores Outliers da Variável 'Alamine_Aminotransferase'
+
+dim(df)
+summary(df)
+
+# Aplica tratamento mantendo somente os registros onde o valor for menor ou igual a 3000 e verifica shape
+df <- df %>% filter(Aspartate_Aminotransferase <= 3000)
+dim(df)
+
+# BoxPlot
+ggplot(df, aes(y = Aspartate_Aminotransferase)) +
+  geom_boxplot(fill = "blue", colour = "black") +
+  labs(title = "Boxplot de Aspartate Aminotransferase Após Primeiro Filtro", y = "Aspartate Aminotransferase")
+
+# Aplica novo tratamento mantendo somente os registros onde o valor for menor ou igual a 2500 e verifica shape 
+df <- df %>% filter(Aspartate_Aminotransferase <= 2500)
+
+# BoxPlot
+ggplot(df, aes(y = Aspartate_Aminotransferase)) +
+  geom_boxplot(fill = "blue", colour = "black") +
+  labs(title = "Boxplot de Aspartate Aminotransferase Após Segundo Filtro", y = "Aspartate Aminotransferase")
+
+
+dim(df)
+summary(df)
+
+
+## Tratando Valores Ausentes
+dim(df)
+
+# Removendo todas linhas com valores ausentes
+df <- df %>% drop_na()
+dim(df)
+
+
+
+#### Pré-Processamento de Dados Para Construção de Modelos de Machine Learning¶
+
+# - Como vimos anteriormente ao aplicarmos o mapa de correlação as variáveis 'Direct_Bilirubin' e 'Total_Bilirubin' possuem uma alta correlação.
+# - Com isso foi tomada a decisão de remover umas das variáveis.
+
+# Removendo Variável 'Direct_Bilirubin'
+
+
+
+
+
+
