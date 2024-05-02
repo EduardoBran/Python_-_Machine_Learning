@@ -10,6 +10,7 @@ getwd()
 library(readxl)         # carregar arquivos
 library(dplyr)          # manipula dados
 library(tidyr)          # manipula dados (funcao pivot_longer)
+library(ROSE)           # balanceamento de dados
 library(ggplot2)        # gera gráficos
 library(patchwork)      # unir gráficos
 library(corrplot)       # mapa de correlação
@@ -477,7 +478,91 @@ rm(indices)
 
 
 
-## 
+## Balanceamento de Classes
+
+# Contagem
+table(dados_treino$Target)
+
+# Por que realizar o Balanceamento de Classes ?
+
+# - Como foi observado no table() acima podemos constatar que os dados estão desbalanceados, isso signifca que tem muito mais pacientes de uma classe do
+#   que da outra.
+# - E o que acontece quando não realizarmos o balanceamento? O modelo de ML aprenderá muito mais o padrão da Classe 1 do que da Classe 0.
+# - Caso não aplicamos técnica de Balanceamento, o modelo tende a ficar tendencioso. Por isso precisamos fazer o Balanceamento de Classes.
+
+# Estratégias para o Balanceamento
+
+# Temos duas estratégias:
+
+# - Reduzir os registros da classe majoritária e assim diminuir consideravelmente o número de registros no nosso dataset.
+# - Aplicar a técnica de Oversampling onde irá ser aumentado o número de registros das classe minoritária. E como isso é feito? Sendo criado dados
+#   sintéticos com base nos dados existentes (Para isso, podemos utilizar o pacote ROSE em R, que oferece funções para gerar dados sintéticos).
 
 
+# Balanceamento da Variável Alvo (Aplicando a técnica Oversampling para balancear a variável alvo)
+table(dados_treino$Target)
+dados_balanceados <- ovun.sample(Target ~ ., data = dados_treino, method = "over", N = 2*max(table(dados_treino$Target)))$data
+table(dados_balanceados$Target)
+
+
+# Por que a técnica de oversamping dever se aplicada somente nos dados de treino?
+
+# - A técnica de oversampling deve ser aplicada somente nos dados de treino para evitar o vazamento de dados (data leakage) e garantir uma avaliação justa
+#   e realista do modelo durante o teste.
+# - Se o balanceamento fosse aplicado ao conjunto de dados completo, incluindo os dados de teste, o modelo poderia acabar sendo avaliado com dados
+#   sintéticos, não representativos da realidade, influenciando os resultados dos testes e comprometendo a capacidade de generalização do modelo para novos
+#   dados não vistos.
+# - Portanto, mantendo o conjunto de teste original, sem dados sintéticos, asseguramos que a performance do modelo reflete melhor sua eficácia em cenários
+#   reais.
+
+
+# Tamanho
+dim(dados_treino)
+dim(dados_balanceados)
+
+# O dataset de treino agora passou de 423 linhas para 608 linhas.
+
+# Ajusta o nome do dataset de treino
+dados_treino <- dados_balanceados
+rm(dados_balanceados)
+
+# Contagem
+table(dados_treino$Target)
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### Separando Dados de Treino e Teste (Python X R)
+
+## No R:
+# - É comum especificar a variável alvo diretamente nos modelos ou funções de treinamento. Por exemplo, ao usar o pacote caret ou funções nativas como lm()
+#   para regressão linear, você normalmente formula o modelo dentro da função, como em lm(y ~ ., data = dados_treino), onde y é a variável alvo e
+#   indica o uso de todas as outras variáveis no dataframe como preditores.
+# - Isso significa que não há necessidade estrita de separar fisicamente a variável alvo das demais variáveis antes do treinamento do modelo.
+
+## No Python:
+# - Ao usar bibliotecas como scikit-learn, você geralmente precisa passar explicitamente os arrays ou matrizes de características e a variável alvo
+#   separadamente para as funções de treinamento. Por exemplo, ao treinar um regressor logístico, você usaria algo como LogisticRegression().fit(X_treino,
+#   y_treino). Aqui, X_treino e y_treino são passados como argumentos separados, o que requer que você prepare esses objetos com antecedência.
+# - Em Python, mesmo que você esteja usando uma biblioteca que permite formulações mais semelhantes ao R (como statsmodels), a prática comum e a maioria
+#   das APIs de machine learning ainda segue o padrão de passar X e y separadamente.
+
+# Por que isso é feito dessa forma em Python?
+
+# - A separação explícita de X e y fornece clareza e evita erros em um ecossistema que é menos integrado do que o R para análises estatísticas.
+#   As bibliotecas de Python, como scikit-learn, são projetadas para serem agnósticas quanto ao tipo de dados, permitindo o trabalho com arrays numpy,
+#   dataframes pandas, e outros formatos de dados, de uma maneira altamente modular e flexível. Além disso, essa separação ajuda na implementação de uma
+#   variedade de pré-processamentos e transformações de maneira mais controlada e sem risco de alterar inadvertidamente a variável alvo.
+
+# Essas diferenças refletem filosofias de design distintas e têm implicações práticas na maneira como você prepara e manipula dados para análises e
+# modelagem em cada linguagem.
 
