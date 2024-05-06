@@ -190,7 +190,10 @@ plot(df$Target)
 str(df)
 
 # Cria uma Nova Variável 'Gender_Num' onde Male = 0 e Female = 1
-df$Gender_Num <- ifelse(df$Gender == "Male", 0, 1)
+# df$Gender_Num <- ifelse(df$Gender == "Male", 0, 1)
+
+# Altera a variável original
+df$Gender <- ifelse(df$Gender == "Male", 0, 1)
 
 # Converte fatores para caracteres e depois para numéricos
 df$Target <- as.numeric(as.character(df$Target))
@@ -201,12 +204,12 @@ str(df)
 
 ## Verificando Correlação
 
-df_num <- df %>% 
-  select(-Gender)
-cor(df_num, use = "complete.obs")
+#df_num <- df %>% 
+#  select(-Gender)
+cor(df, use = "complete.obs")
 
 # Criar um mapa de calor da matriz de correlação
-corrplot(cor(df_num, use = "complete.obs"),
+corrplot(cor(df, use = "complete.obs"),
          method = "color",
          type = "upper",
          addCoef.col = 'springgreen2',
@@ -545,26 +548,33 @@ table(dados_treino$Target)
 
 
 
-## Padronização x Normalização
+### Padronização x Normalização
 
-# - Normalmente a aplicação de técnica de padronização ou normalização serão as últimas atividades dentro do Pré-Processamento.
-
-## Quando usar Padronização:
+# As técnicas de padronização e normalização são usadas no pré-processamento de dados em aprendizado de máquina para preparar variáveis numéricas,
+# ajustando suas escalas. Aqui está quando e por que usar cada uma:
   
-# - Padronização transforma os dados de modo que eles tenham média zero e desvio padrão igual a um.
-# - Isso é útil para dados que já são centralizados e precisam de ajuste de escala sem vinculação a um intervalo específico.
-# - Por exemplo, se você tem alturas de pessoas em centímetros variando de 150cm a 190cm e pesos em quilogramas de 50kg a 100kg, a padronização ajudaria a
-#   comparar essas duas medidas em uma escala comum sem distorcer as diferenças de intervalo.
-# - Essa técnica é particularmente útil em algoritmos como Regressão Logística e SVM, que são sensíveis à variação nas escalas das variáveis de entrada.
+## Padronização
+# Transforma os dados de modo que eles tenham média zero e desvio padrão igual a um.
 
-## Quando usar Normalização:
+# - Quando usar    : Aplicável quando os dados já estão centralizados em torno de uma média e precisam de ajuste na escala. É útil em modelos como SVM e
+#                    Regressão Logística, que são sensíveis a variações na escala das variáveis de entrada.
+# - Exemplo prático: Se medimos altura em centímetros (150-190 cm) e peso em quilogramas (50-100 kg), a padronização permite comparar essas medidas numa 
+#                    escala comum, evitando distorções devido a diferentes intervalos de valores.
+# - Motivo para
+#   este projeto   : Optamos pela padronização porque as variáveis têm escalas muito diferentes e há a presença de outliers significativos. A padronização
+#                    mantém as propriedades estatísticas dos dados, minimizando o impacto dos outliers, ao contrário da normalização que pode distorcer os
+#                    dados ao comprimir a maioria dos valores em um intervalo estreito.
 
-# - Normalização ajusta os dados para que seus valores caibam em um intervalo predefinido, geralmente de 0 a 1.
-# - Isso é especialmente importante quando os dados exibem variações extremas nas escalas das características e quando um algoritmo é sensível à magnitude
-#   dos dados, como K-Nearest Neighbors (KNN) e Clustering.
-# - Por exemplo, imagine um cenário onde um conjunto de dados inclui os preços dos produtos variando de 1 real a 1000 reais e a quantidade vendida desses
-#   produtos de 1 a 20. A normalização permitiria que ambos os atributos contribuíssem igualmente para o aprendizado do modelo, evitando que os preços
-#   dominem simplesmente porque seus valores são muito maiores.
+## Normalização
+# Ajusta os dados para que seus valores caibam em um intervalo predefinido, geralmente de 0 a 1.
+
+# - Quando usar    : Ideal para dados com variações extremas nas escalas e onde os algoritmos são sensíveis à magnitude absoluta dos dados, como
+#                    K-Nearest Neighbors (KNN) e técnicas de clustering.
+# - Exemplo prático: Se um dataset contém preços de produtos variando de R 1𝑎𝑅1000 e quantidades vendidas de 1 a 20 unidades, a normalização faria com
+#                    que ambos os atributos tivessem a mesma contribuição no modelo, independentemente da escala original.
+# - Motivo para não
+#   esta no projeto: Não foi escolhida devido à presença de outliers, que poderiam ser enfatizados indevidamente, e porque a normalização poderia limitar
+#                    a eficácia de modelos que assumem uma distribuição normal dos dados.
 
 ## Importante:
 
@@ -573,27 +583,35 @@ table(dados_treino$Target)
 # - A normalização pode não ser a melhor escolha se houver outliers significativos no conjunto de dados, pois isso poderia comprimir a maioria dos dados
 #   em um intervalo muito estreito. Nesses casos, a padronização é recomendada.
 
-## Por que iremos usar Padronização nos dados deste projeto?
 
-# Uniformidade na escala: Os dados possuem variáveis com escalas muito diferentes. Por exemplo, a variável Alkaline_Phosphotase tem valores que vão até
-# 2110, enquanto Gender varia apenas entre 0 e 1. A padronização ajusta todas as variáveis para terem média zero e desvio padrão um, garantindo que nenhuma
-# variável domine o modelo devido à sua escala.
-# - Melhor desempenho em algoritmos sensíveis à escala: Algoritmos como SVM (Máquinas de Vetores de Suporte) e Regressão Logística são sensíveis à escala
-#   das variáveis. A padronização ajuda a evitar que características com maior magnitude influenciem desproporcionalmente o resultado do aprendizado.
+# Padronizado Dados de Treino
+summary(dados_treino)
 
-# E por que não usamos normalização aqui?
-  
-# - Presença de outliers: A normalização pode não ser ideal quando há outliers significativos, pois comprime a maioria dos dados em um intervalo muito
-#   estreito e deixa os outliers ainda mais destacados. Nossos dados incluem algumas variáveis com outliers extremos
-#   (por exemplo, Aspartate_Aminotransferase com valor máximo de 4929), o que poderia distorcer a análise.
-# - Os dados em todas as variáveis deveriam variar dentro de limites razoavelmente próximos, sem a presença de outliers extremos. Isso significa que não
-#   deveria haver valores que distorcessem significativamente o intervalo geral dos dados. Por exemplo, todas as variáveis deveriam ter valores entre
-#   limites como 0 a 100 ou 0 a 1.000, sem saltos drásticos como de 0 a 20.000.
-# - Menos efetiva para alguns modelos: A normalização, ao contrário da padronização, pode ser menos eficaz para modelos que assumem que os dados estão
-#   distribuídos normalmente, como é o caso de muitos algoritmos de machine learning.
+# Calculando a média e o desvio padrão dos dados de treino 
+treino_mean <- sapply(dados_treino[, -which(names(dados_treino) == "Target")], mean, na.rm = TRUE)
+treino_std <- sapply(dados_treino[, -which(names(dados_treino) == "Target")], sd, na.rm = TRUE)
 
+# Exibindo a média e o desvio padrão
+print(treino_mean)
+print(treino_std)
+
+# Padronizando todas as variáveis, exceto 'Target'
+dados_treino[, names(treino_mean)] <- sweep(dados_treino[, names(treino_mean)], 2, treino_mean, "-")
+dados_treino[, names(treino_std)] <- sweep(dados_treino[, names(treino_std)], 2, treino_std, "/")
+
+summary(dados_treino)
 
 
+# Padronizado Dados de Teste
+summary(dados_teste)
+
+# Padronizando os dados de teste usando a média e desvio padrão dos dados de treino
+dados_teste[, names(treino_mean)] <- sweep(dados_teste[, names(treino_mean)], 2, treino_mean, "-")
+dados_teste[, names(treino_std)] <- sweep(dados_teste[, names(treino_std)], 2, treino_std, "/")
+
+summary(dados_teste)
+
+rm(treino_mean, treino_std)
 
 
 
