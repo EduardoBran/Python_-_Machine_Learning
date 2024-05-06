@@ -355,6 +355,10 @@ ggplot(df, aes(y = Alamine_Aminotransferase)) +
 # Exibindo os cinco maiores valores únicos e suas frequências:
 table(df$Alamine_Aminotransferase)[as.character(sort(unique(df$Alamine_Aminotransferase), decreasing = TRUE)[1:5])]
 
+# Exibindo a quantidade de valores acima da média:
+sum(df$Alamine_Aminotransferase > mean(df$Alamine_Aminotransferase))  # Contagem de valores acima da média
+length(df$Alamine_Aminotransferase)                                   # Contagem total de valores da variável
+
 
 # Conclusão
 
@@ -392,12 +396,22 @@ ggplot(df, aes(y = Aspartate_Aminotransferase)) +
 # Interpretando o gráfico
 
 # - Podemos verificar que novamente temos valores outliers, mas com um comportamente diferente. Parece que temos menos dados com valores extremos.
-# - E neste caso, ss valores extremos são mesmo outliers para esta variável?
+# - Aqui nós temos apenas dois valores outliers acima de 2000 enquanto todos os outros abaixo deste valor. 
+# - E neste caso, todos esses valores extremos são mesmo outliers para esta variável?
   
 # Podemos responder isso verificando novamente os maiores valores únicos e suas frequências:
 
+
 # Exibindo os cinco maiores valores únicos e suas frequências:
 table(df$Aspartate_Aminotransferase)[as.character(sort(unique(df$Aspartate_Aminotransferase), decreasing = TRUE)[1:5])]
+
+# Exibindo a quantidade de valores acima da média:
+sum(df$Aspartate_Aminotransferase > mean(df$Aspartate_Aminotransferase))  # Contagem de valores acima da média
+length(df$Aspartate_Aminotransferase)                                     # Contagem total de valores da variável
+
+# Exibindo a quantidade de valores acima de 2000:
+sum(df$Aspartate_Aminotransferase > 2000)                                 # Contagem de valores acima de 2000
+length(df$Aspartate_Aminotransferase)                                     # Contagem total de valores da variável
 
 
 # Conclusão
@@ -529,6 +543,54 @@ rm(dados_balanceados)
 # Contagem
 table(dados_treino$Target)
 
+
+
+## Padronização x Normalização
+
+# - Normalmente a aplicação de técnica de padronização ou normalização serão as últimas atividades dentro do Pré-Processamento.
+
+## Quando usar Padronização:
+  
+# - Padronização transforma os dados de modo que eles tenham média zero e desvio padrão igual a um.
+# - Isso é útil para dados que já são centralizados e precisam de ajuste de escala sem vinculação a um intervalo específico.
+# - Por exemplo, se você tem alturas de pessoas em centímetros variando de 150cm a 190cm e pesos em quilogramas de 50kg a 100kg, a padronização ajudaria a
+#   comparar essas duas medidas em uma escala comum sem distorcer as diferenças de intervalo.
+# - Essa técnica é particularmente útil em algoritmos como Regressão Logística e SVM, que são sensíveis à variação nas escalas das variáveis de entrada.
+
+## Quando usar Normalização:
+
+# - Normalização ajusta os dados para que seus valores caibam em um intervalo predefinido, geralmente de 0 a 1.
+# - Isso é especialmente importante quando os dados exibem variações extremas nas escalas das características e quando um algoritmo é sensível à magnitude
+#   dos dados, como K-Nearest Neighbors (KNN) e Clustering.
+# - Por exemplo, imagine um cenário onde um conjunto de dados inclui os preços dos produtos variando de 1 real a 1000 reais e a quantidade vendida desses
+#   produtos de 1 a 20. A normalização permitiria que ambos os atributos contribuíssem igualmente para o aprendizado do modelo, evitando que os preços
+#   dominem simplesmente porque seus valores são muito maiores.
+
+## Importante:
+
+# - Não é necessário aplicar padronização/normalização na variável alvo.
+# - Nós não aplicamos as duas técnicas, ou usamos uma ou outra.
+# - A normalização pode não ser a melhor escolha se houver outliers significativos no conjunto de dados, pois isso poderia comprimir a maioria dos dados
+#   em um intervalo muito estreito. Nesses casos, a padronização é recomendada.
+
+## Por que iremos usar Padronização nos dados deste projeto?
+
+# Uniformidade na escala: Os dados possuem variáveis com escalas muito diferentes. Por exemplo, a variável Alkaline_Phosphotase tem valores que vão até
+# 2110, enquanto Gender varia apenas entre 0 e 1. A padronização ajusta todas as variáveis para terem média zero e desvio padrão um, garantindo que nenhuma
+# variável domine o modelo devido à sua escala.
+# - Melhor desempenho em algoritmos sensíveis à escala: Algoritmos como SVM (Máquinas de Vetores de Suporte) e Regressão Logística são sensíveis à escala
+#   das variáveis. A padronização ajuda a evitar que características com maior magnitude influenciem desproporcionalmente o resultado do aprendizado.
+
+# E por que não usamos normalização aqui?
+  
+# - Presença de outliers: A normalização pode não ser ideal quando há outliers significativos, pois comprime a maioria dos dados em um intervalo muito
+#   estreito e deixa os outliers ainda mais destacados. Nossos dados incluem algumas variáveis com outliers extremos
+#   (por exemplo, Aspartate_Aminotransferase com valor máximo de 4929), o que poderia distorcer a análise.
+# - Os dados em todas as variáveis deveriam variar dentro de limites razoavelmente próximos, sem a presença de outliers extremos. Isso significa que não
+#   deveria haver valores que distorcessem significativamente o intervalo geral dos dados. Por exemplo, todas as variáveis deveriam ter valores entre
+#   limites como 0 a 100 ou 0 a 1.000, sem saltos drásticos como de 0 a 20.000.
+# - Menos efetiva para alguns modelos: A normalização, ao contrário da padronização, pode ser menos eficaz para modelos que assumem que os dados estão
+#   distribuídos normalmente, como é o caso de muitos algoritmos de machine learning.
 
 
 
