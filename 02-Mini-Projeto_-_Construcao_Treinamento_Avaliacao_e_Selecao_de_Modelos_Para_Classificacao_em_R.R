@@ -14,8 +14,11 @@ library(ROSE)           # balanceamento de dados
 library(ggplot2)        # gera gráficos
 library(patchwork)      # unir gráficos
 library(corrplot)       # mapa de correlação
-library(caret)          # pacote preProcess para normalização
 
+library(caret)          # pacote preProcess para normalização / facilitar a validação cruzada / seleção de hiperparâmetros
+library(pROC)           # Para ROC e AUC
+
+library(glmnet)         # algoritmo para regressão logística com regularização
 library(randomForest)   # algoritmo de ML
 
 
@@ -169,6 +172,7 @@ ggplot(df_long, aes(x = value)) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Melhorar a legibilidade dos rótulos do eixo x
 
+rm(df_long)
 
 # Interpretando sumário e gráficos:
 
@@ -231,7 +235,7 @@ corrplot(cor(df, use = "complete.obs"),
 # - Estamos na etapa de Análise Exploratória onde estamos entendendo a natureza dos nossos dados.
 
 
-## Verificando Relação entre Atributs
+## Verificando Relação entre Atributos
 
 ## Verificando Através de Gráfico a Relação entre as Variáveis 'Direct_Bilirubin' e 'Total_Bilirubin' por 'Target'
 ggplot(df, aes(x = Total_Bilirubin, y = Direct_Bilirubin, color = as.factor(Target))) +
@@ -548,7 +552,7 @@ table(dados_treino$Target)
 
 
 
-### Padronização x Normalização
+## Padronização x Normalização
 
 # As técnicas de padronização e normalização são usadas no pré-processamento de dados em aprendizado de máquina para preparar variáveis numéricas,
 # ajustando suas escalas. Aqui está quando e por que usar cada uma:
@@ -612,6 +616,274 @@ dados_teste[, names(treino_std)] <- sweep(dados_teste[, names(treino_std)], 2, t
 summary(dados_teste)
 
 rm(treino_mean, treino_std)
+
+
+
+#### Construindo Modelos de Machine Learning
+
+# Nesta etapa do projeto, desenvolveremos e avaliaremos cinco diferentes modelos de machine learning para identificar qual deles apresenta o melhor
+# desempenho para o nosso conjunto de dados.
+
+# Cada modelo foi escolhido por suas características únicas e capacidade de lidar com problemas de classificação.
+# Abaixo estão os modelos que serão implementados e testados:
+  
+# - Modelo 1: Regressão Logística - Utilizado como benchmark devido à sua simplicidade e eficácia em problemas de classificação binária.
+#   Este modelo ajudará a estabelecer uma linha base para a performance que esperamos superar com técnicas mais complexas.
+
+# - Modelo 2: Random Forest - Um modelo de ensemble que usa múltiplas árvores de decisão para melhorar a generalização. É conhecido por sua alta precisão
+#   e capacidade de ranquear a importância das variáveis.
+
+# - Modelo 3: KNN (K-Nearest Neighbors) - Um modelo baseado em instância que faz previsões com base nas labels das amostras mais próximas no espaço de
+#   características. Este modelo é eficaz em casos onde a relação entre as variáveis é altamente não-linear.
+
+# - Modelo 4: Decision Tree (Árvore de Decisão) - Uma árvore de decisão é útil por sua interpretabilidade, permitindo entender claramente quais critérios
+#   o modelo está usando para tomar decisões.
+
+# - Modelo 5: SVM (Support Vector Machine) - Ideal para problemas de classificação e regressão de margem grande. O SVM é eficiente na criação de hiperplanos
+#   em um espaço multidimensional, o que o torna adequado para casos com muitas variáveis de entrada.
+
+# Cada modelo será treinado utilizando o mesmo conjunto de dados, permitindo uma comparação justa de sua eficácia. A avaliação de cada modelo incluirá 
+# métricas como precisão, AUC-ROC, entre outras, dependendo das especificidades de nosso problema e dados.
+
+
+
+## Conversão da Variável Alvo Para Tipo Factor (Certifique-se de que Target é um fator com dois níveis)
+dados_treino$Target <- factor(dados_treino$Target, levels = c(0, 1))
+dados_teste$Target <- factor(dados_teste$Target, levels = c(0, 1))
+
+# Ajustar os níveis da variável alvo para serem nomes válidos de variáveis em R
+levels(dados_treino$Target) <- c("Class0", "Class1")
+levels(dados_teste$Target) <- c("Class0", "Class1")
+
+
+## Cria um dataframe para receber as métricas de cada modelo
+df_modelos <- data.frame()
+
+
+
+### Modelo 1 com Regressão Logística (Benchmark)
+
+# Para a primeira versão do modelo o ideal é escolher um algoritmo simples, fácil de compreender e que será usado como Benchmark.
+# Obs: Como parte do processo envolve aleatoriedade, os resultados podem ser ligeiramente diferentes a cada execução deste bloco de código.
+
+
+## Versão 1
+
+# - Cria vários modelos utilizando o pacote `caret` com um grid de hiperparâmetros para `glmnet`, que combina standardização de dados e regressão logística
+#   com penalidade L2. O objetivo é encontrar os melhores hiperparâmetros.
+# - O `GridSearchCV` é simulado no R com a função `train`, aplicando validação cruzada e pré-processamento. Após identificar o melhor parâmetro (lambda),
+#   treina-se o modelo final diretamente com a função `glmnet` utilizando os hiperparâmetros otimizados.
+# - Isso é feito para assegurar um modelo eficiente e pronto para implementações práticas.
+
+
+str(dados_treino)
+str(dados_teste)
+
+
+# Definindo o controle de treinamento para Grid Search
+train_control <- trainControl(
+  method = "cv",
+  number = 10,
+  savePredictions = "final",
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary
+)
+
+# Define a lista de hiperparâmetros
+lambda_grid <- 1 / c(0.0001, 0.001, 0.01, 0.1, 1, 10, 100, 1000, 10000)
+tuned_params <- expand.grid(alpha = 0, lambda = lambda_grid)
+
+# Executa o Grid Search usando a fórmula diretamente
+grid_search <- train(
+  Target ~ .,
+  data = dados_treino,
+  method = "glmnet",
+  tuneGrid = tuned_params,
+  trControl = train_control,
+  metric = "ROC",
+  preProcess = "scale",
+  family = "binomial"
+)
+
+
+# Extraindo os melhores parâmetros
+best_lambda <- grid_search$bestTune$lambda
+best_lambda
+
+# Treinando o modelo final com os melhores parâmetros encontrados
+modelo_v1 <- glmnet(
+  x = as.matrix(dados_treino[, -which(names(dados_treino) == "Target")]),
+  y = as.numeric(dados_treino$Target),
+  alpha = 0,  # L2 penalidade como em LogisticRegression com 'l2'
+  lambda = best_lambda,
+  family = "binomial",
+  standardize = TRUE  # Equivalente ao StandardScaler
+)
+modelo_v1
+
+rm(train_control, lambda_grid, tuned_params, grid_search)
+
+
+## Previsões
+
+# Preparando dados de teste para previsão
+X_teste <- as.matrix(dados_teste[, -which(names(dados_teste) == "Target")])
+
+# Previsões de Classe
+y_pred_v1 <- predict(modelo_v1, newx = X_teste, s = "lambda.min", type = "class")
+y_pred_v1 <- as.factor(ifelse(y_pred_v1 == "1", "Class0", "Class1"))
+head(y_pred_v1)
+
+# Previsões de Probabilidade
+y_pred_proba_v1 <- predict(modelo_v1, newx = X_teste, s = "lambda.min", type = "response")
+head(y_pred_proba_v1)
+
+
+
+## Avaliação do Modelo
+
+# Matriz de Confusão
+conf_matrix <- confusionMatrix(y_pred_v1, dados_teste$Target)
+conf_matrix
+
+# Calcula e exibe a métrica AUC-ROC
+roc_obj <- roc(response = dados_teste$Target, predictor = as.numeric(y_pred_proba_v1))
+roc_auc_v1 <- auc(roc_obj)
+roc_auc_v1
+
+# Calcula a curva ROC
+roc_curve <- roc(response = dados_teste$Target, predictor = as.numeric(y_pred_proba_v1))
+roc_curve
+plot(roc_curve, main="ROC Curve", col="#1c61b6") # Opcional: Gráfico da curva ROC
+
+# Calcula e exibe a acurácia
+acuracia_v1 <- sum(y_pred_v1 == dados_teste$Target) / length(y_pred_v1)
+acuracia_v1
+
+# Exibindo os resultados
+cat("Confusion Matrix:\n")
+print(conf_matrix$table)
+cat(sprintf("\nAUC-ROC: %f\n", roc_auc_v1))
+cat(sprintf("Accuracy: %f\n", acuracia_v1))
+
+
+## Salvando as métricas do modelo_v1 em um Dicionário
+dict_modelo_v1 <- data.frame(
+  Nome = "modelo_v1",
+  Algoritmo = "Regressão Logística",
+  ROC_AUC_Score = as.numeric(roc_auc_v1),  # Converte AUC para numérico
+  AUC_Score = as.numeric(auc(roc_curve)),  # AUC calculada da curva ROC, também convertida
+  Acuracia = acuracia_v1
+)
+
+## Adiciona o Dicionário com resultado das métricas do modelo_v1 no dataframe com resultados
+df_modelos <- bind_rows(df_modelos, dict_modelo_v1)
+df_modelos
+
+rm(X_teste, y_pred_v1, y_pred_proba_v1, conf_matrix, roc_obj, acuracia_v1, roc_auc_v1, roc_curve, dict_modelo_v1, modelo_v1)
+
+
+
+## Versão 2
+
+# - Aplica a Técnica de Feature Selection no modelo_v1 criado na Versão 1
+# - Re-cria o modelo utilizando as 5 variáveis mais importantes
+
+
+## Seleção de Variáveis (Feature Selection)
+modelo_fs <- randomForest(Target ~ ., 
+                          data = dados_treino, 
+                          ntree = 100, nodesize = 10, importance = TRUE)
+
+# Visualizando a importância das variáveis por números
+print(modelo_fs$importance)
+
+# Visualizando a importância das variáveis por gráficos
+varImpPlot(modelo_fs)
+
+importancia_ordenada <- modelo_fs$importance[order(-modelo_fs$importance[, 1]), , drop = FALSE]
+df_importancia <- data.frame(
+  Variavel = rownames(importancia_ordenada),
+  Importancia = importancia_ordenada[, 1]
+)
+ggplot(df_importancia, aes(x = reorder(Variavel, -Importancia), y = Importancia)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  labs(title = "Importância das Variáveis", x = "Variável", y = "Importância") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 10))
+
+# Selecionando as 5 variáveis mais importantes
+vars_importantes <- rownames(importancia_ordenada)[1:5]
+
+# Recriando o modelo usando apenas as variáveis mais importantes
+dados_treino_importantes <- dados_treino[, c(vars_importantes, "Target")]
+
+modelo_v2 <- glmnet(
+  x = as.matrix(dados_treino_importantes[, -which(names(dados_treino_importantes) == "Target")]),
+  y = as.numeric(dados_treino_importantes$Target),
+  alpha = 0,  # L2 penalidade como em LogisticRegression com 'l2'
+  lambda = best_lambda,  # Utilizando o melhor lambda encontrado anteriormente
+  family = "binomial",
+  standardize = TRUE
+)
+
+# Preparando dados de teste para previsão com as variáveis mais importantes
+dados_teste_importantes <- dados_teste[, c(vars_importantes, "Target")]
+X_teste_importantes <- as.matrix(dados_teste_importantes[, -which(names(dados_teste_importantes) == "Target")])
+
+# Previsões de Classe
+y_pred_v2 <- predict(modelo_v2, newx = X_teste_importantes, s = "lambda.min", type = "class")
+y_pred_v2 <- as.factor(ifelse(y_pred_v2 == "1", "Class0", "Class1"))
+
+# Previsões de Probabilidade
+y_pred_proba_v2 <- predict(modelo_v2, newx = X_teste_importantes, s = "lambda.min", type = "response")
+
+## Avaliação do Modelo
+conf_matrix_v2 <- confusionMatrix(y_pred_v2, dados_teste_importantes$Target)
+roc_obj_v2 <- roc(response = dados_teste_importantes$Target, predictor = as.numeric(y_pred_proba_v2))
+roc_auc_v2 <- auc(roc_obj_v2)
+acuracia_v2 <- sum(y_pred_v2 == dados_teste_importantes$Target) / length(y_pred_v2)
+
+# Salvando as métricas do modelo_v2 em um Dicionário
+dict_modelo_v2 <- data.frame(
+  Nome = "modelo_v2",
+  Algoritmo = "Regressão Logística com Seleção de Variáveis",
+  ROC_AUC_Score = as.numeric(roc_auc_v2),
+  AUC_Score = as.numeric(auc(roc_obj_v2)),
+  Acuracia = acuracia_v2
+)
+
+# Adiciona o Dicionário com resultado das métricas do modelo_v2 no dataframe com resultados
+df_modelos <- bind_rows(df_modelos, dict_modelo_v2)
+df_modelos
+
+rm(modelo_fs, importancia_ordenada, df_importancia, vars_importantes, dados_treino_importantes, modelo_v2, dados_teste_importantes,
+   X_teste_importantes, y_pred_v2, y_pred_proba_v2, conf_matrix_v2, roc_obj_v2, roc_auc_v2, acuracia_v2, dict_modelo_v2)
+
+
+
+
+###  Modelo 2 com Random Forest
+
+# Nosso desafio agora é tentar obter um modelo melhor que a versão 1. Vamos tentar o algoritmo Random Forest.
+
+
+## Versão 1
+
+# - 
+
+
+analise_inicial(dados_treino)
+
+
+
+
+
+
+
+
+
+
+
 
 
 
