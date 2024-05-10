@@ -188,6 +188,8 @@ summary(df_cat)
 plot(df$Gender)
 plot(df$Target)
 
+rm(df_num, df_cat)
+
 
 ## Aplicando Label Encoding na Variável 'Gender' e 'Target' (no dataframe original df)
 
@@ -490,7 +492,6 @@ df <- df %>%
 
 
 ##  Dividindo os dados em treino e teste
-
 set.seed(100)
 indices <- createDataPartition(df$Target, p = 0.75, list = FALSE)
 dados_treino <- df[indices, ]
@@ -871,8 +872,6 @@ rm(modelo_fs, importancia_ordenada, df_importancia, vars_importantes, dados_trei
 
 # - 
 
-
-analise_inicial(dados_treino)
 
 
 
