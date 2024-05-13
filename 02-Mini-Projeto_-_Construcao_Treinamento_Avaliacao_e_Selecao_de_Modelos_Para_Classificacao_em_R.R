@@ -20,6 +20,7 @@ library(pROC)           # Para ROC e AUC
 
 library(glmnet)         # algoritmo para regressão logística com regularização
 library(randomForest)   # algoritmo de ML
+library(class)          # algortimo KNN
 
 
 
@@ -546,7 +547,7 @@ dim(dados_balanceados)
 
 # Ajusta o nome do dataset de treino
 dados_treino <- dados_balanceados
-rm(dados_balanceados)
+rm(dados_balanceados, analise_inicial)
 
 # Contagem
 table(dados_treino$Target)
@@ -815,6 +816,8 @@ ggplot(df_importancias, aes(x = Importance, y = reorder(Feature, Importance))) +
 
 
 ## Selecionando as 5 variáveis mais importantes
+
+# Critério: Foi detectado uma disparidade entre as 5 primeiras e as outras 4 variáveis. Vamos escolher as 5 primerias.
 vars_importantes <- head(df_importancias$Feature, 5)
 
 
@@ -871,21 +874,263 @@ rm(modelo_v1, modelo_v2, dados_teste_importantes, X_teste_importantes, importanc
 
 
 
+
 ###  Modelo 2 com Random Forest
 
-# Nosso desafio agora é tentar obter um modelo melhor que a versão 1. Vamos tentar o algoritmo Random Forest.
+# - Nosso desafio agora é tentar obter um modelo melhor que a versão 1. Vamos tentar o algoritmo Random Forest.
 
 
 ## Versão 1
 
-# - 
+# - Criação e treinamento do modelo com Random Forest com a utilzação de hiperparâmetros
+set.seed(123) 
+
+
+# Definir os hiperparâmetros
+tuned_params_v2 <- list(
+  n_estimators = c(100, 200, 300, 400, 500),
+  min_samples_split = c(2, 5, 10),
+  min_samples_leaf = c(1, 2, 4)
+)
+
+# Lista para armazenar os resultados
+resultados <- list()
+
+# Loop sobre os hiperparâmetros
+for (n in tuned_params_v2$n_estimators) {
+  for (split in tuned_params_v2$min_samples_split) {
+    for (leaf in tuned_params_v2$min_samples_leaf) {
+      
+      # Treinar o modelo com os hiperparâmetros atuais
+      modelo <- randomForest(
+        formula = Target ~ .,  # Definir sua fórmula aqui
+        data = dados_treino,  # Seus dados de treinamento
+        ntree = n,  # Número de árvores na floresta
+        mtry = split,  # Número de variáveis a serem consideradas em cada divisão
+        min.node.size = leaf  # Tamanho mínimo do nó
+      )
+      
+      # Salvar os resultados
+      resultados[[paste("ntree", n, "mtry", split, "min.node.size", leaf)]] <- modelo
+    }
+  }
+}
+
+# Extraindo melhor configuração de hiperparâmetro
+erros <- sapply(resultados, function(modelo) modelo$err.rate[1])  # Extrair as taxas de erro de cada modelo
+melhor_modelo <- resultados[[which.min(erros)]]                      # Extrair o melhor modelo
+melhor_modelo
+
+
+## Criando Modelo com melhor Configuração de Hiperparâmetro
+modelo_v1 <- randomForest(
+  formula = Target ~ .,                         # Definir sua fórmula aqui
+  data = dados_treino,                          # Seus dados de treinamento
+  ntree = melhor_modelo$ntree,                  # Número de árvores na floresta
+  mtry = melhor_modelo$mtry,                    # Número de variáveis a serem consideradas em cada divisão
+  min.node.size = melhor_modelo$min.node.size,  # Tamanho mínimo do nó
+  importance = T
+)
+modelo_v1
+
+
+## Previsões
+y_pred_v1 <- predict(modelo_v1, newdata = dados_teste)
+
+# Previsões de Probabilidade
+y_pred_proba_v1 <- predict(modelo_v1, newdata = dados_teste, type = "prob")
+
+
+## Avaliação do Modelo
+conf_matrix_v1 <- confusionMatrix(y_pred_v1, dados_teste$Target)
+roc_obj_v1 <- roc(response = dados_teste$Target, predictor = as.numeric(y_pred_proba_v1[, "Class1"]))
+roc_auc_v1 <- auc(roc_obj_v1)
+acuracia_v1 <- sum(y_pred_v1 == dados_teste$Target) / length(y_pred_v1)
+
+# Salvando as métricas do modelo_v1 em um Dicionário
+dict_modelo_v1 <- data.frame(
+  Nome = "modelo_v1",
+  Algoritmo = "Random Forest",
+  ROC_AUC_Score = as.numeric(roc_auc_v1),
+  AUC_Score = as.numeric(auc(roc_obj_v1)),
+  Acuracia = acuracia_v1
+)
+
+# Adiciona o Dicionário com resultado das métricas do modelo_v1 no dataframe com resultados
+df_modelos <- bind_rows(df_modelos, dict_modelo_v1)
+df_modelos
+
+rm(tuned_params_v2, resultados, n, split, leaf, modelo, erros, y_pred_v1, y_pred_proba_v1, conf_matrix_v1,
+   roc_obj_v1, roc_auc_v1, acuracia_v1, dict_modelo_v1, modelo_v1)
+
+
+
+
+## Versão 2
+
+# - Aplica técnica de Feature Selection usando configurações de hiperparâmetros de modelo_v1
+
+
+## Criando Modelo Para Seleção de Variáveis (Feature Selection)
+modelo <- randomForest(Target ~ ., 
+                       data = dados_treino, 
+                       ntree = 200, nodesize = 10, importance = T)
+
+# Visualizando por números
+print(modelo$importance)
+
+# Visualizando por Gráficos
+varImpPlot(modelo)
+
+importancia_ordenada <- modelo$importance[order(-modelo$importance[, 1]), , drop = FALSE] 
+df_importancia <- data.frame(
+  Variavel = rownames(importancia_ordenada),
+  Importancia = importancia_ordenada[, 1]
+)
+ggplot(df_importancia, aes(x = reorder(Variavel, -Importancia), y = Importancia)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  labs(title = "Importância das Variáveis", x = "Variável", y = "Importância") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 10))
+
+
+## Recriando Modelo Usando Feature Selection
+
+# Selecionando as 5 variáveis mais importantes
+vars_importantes <- head(df_importancia$Variavel, 5)
+
+# Criando novos conjuntos de dados de treino e teste apenas com as variáveis selecionadas
+dados_treino_importantes <- dados_treino[, c(vars_importantes, "Target")]
+dados_teste_importantes <- dados_teste[, c(vars_importantes, "Target")]
+
+# Recriando o modelo com as variáveis selecionadas
+modelo_v2 <- randomForest(
+  formula = Target ~ .,                           # Fórmula usando todas as variáveis disponíveis no novo conjunto de dados
+  data = dados_treino_importantes,                # Novo conjunto de dados de treinamento
+  ntree = melhor_modelo$ntree,                    # Número de árvores na floresta do melhor modelo
+  mtry = melhor_modelo$mtry,                      # Número de variáveis consideradas para cada divisão no melhor modelo
+  nodesize = melhor_modelo$min.node.size          # Tamanho mínimo dos nós do melhor modelo
+)
+modelo_v2
+
+
+## Previsões
+y_pred_v2 <- predict(modelo_v2, newdata = dados_teste_importantes)
+y_pred_proba_v2 <- predict(modelo_v2, newdata = dados_teste_importantes, type = "prob")[,2]  # Probabilidades para a classe positiva
+
+## Matriz de confusão e métricas de avaliação
+conf_matrix_v2 <- confusionMatrix(y_pred_v2, dados_teste_importantes$Target)
+roc_auc_v2 <- roc(response = dados_teste_importantes$Target, predictor = y_pred_proba_v2)
+auc_v2 <- auc(roc_auc_v2)
+acuracia_v2 <- conf_matrix_v2$overall['Accuracy']
+
+
+# Salvando Resultados
+dict_modelo_v2 <- data.frame(
+  Nome = 'modelo_v2',
+  Algoritmo = 'Random Forest com Variáveis Selecionadas',
+  ROC_AUC_Score = roc_auc_v2$auc, 
+  AUC_Score = auc_v2, 
+  Acuracia = acuracia_v2
+)
+
+
+# Concatenando com outros dataframe com todos os resultados
+row.names(dict_modelo_v2) <- NULL
+df_modelos <- rbind(df_modelos, dict_modelo_v2)
+df_modelos
+
+rm(modelo, importancia_ordenada, df_importancia, dict_modelo_v2, modelo_v2, vars_importantes, dados_treino_importantes, dados_teste_importantes,
+   y_pred_v2, y_pred_proba_v2, conf_matrix_v2, roc_auc_v2, auc_v2, acuracia_v2, melhor_modelo)
+
+
+
+
+
+###  Modelo 3 com KNN
+
+# - Vamos tentar agora um algoritmo mais simples, o KNN.
+# - Para esse algoritmo precisamos antes definir o valor de K, que é o número de vizinhos mais próximos.
+
+
+## Versão 1
+
+# - Com o algoritmo KNN não extraímos as variáveis mais importantes, pois o conceito do algoritmo é diferente.
+# - Será criado apenas 1 versão.
+
+
+## Preparando Dados de Treino e Teste
+X_treino <- dados_treino[, -ncol(dados_treino)]
+y_treino <- dados_treino[, ncol(dados_treino)]
+X_teste <- dados_teste[, -ncol(dados_teste)]
+y_teste <- dados_teste[, ncol(dados_teste)]
+
+# Lista de possíveis valores de K
+vizinhos <- seq(1, 19, by = 2)
+
+# Definindo o controle da validação cruzada
+controle <- trainControl(method = "cv", number = 5)
+
+# Treinando o modelo KNN para vários valores de K
+modelo_knn <- train(x = X_treino, y = y_treino, method = "knn",
+                    tuneGrid = data.frame(.k = vizinhos),
+                    trControl = controle,
+                    metric = "Accuracy")
+modelo_knn
+
+# Extrair o melhor valor de K
+optimal_k <- modelo_knn$results$k[which.max(modelo_knn$results$Accuracy)]
+cat('O valor ideal de k usado no modelo foi:', optimal_k, '\n')
+
+
+## Previsões
+y_pred_v3 <- predict(modelo_knn, newdata = X_teste)
+y_pred_proba_v3 <- predict(modelo_knn, newdata = X_teste, type = "prob")[,2]  # Probabilidades para a classe positiva
+
+
+## Avaliação do Modelo
+conf_matrix_v3 <- confusionMatrix(y_pred_v3, y_teste)
+roc_auc_v3 <- roc(response = y_teste, predictor = y_pred_proba_v3)
+auc_v3 <- auc(roc_auc_v3)
+acuracia_v3 <- conf_matrix_v3$overall['Accuracy']
+
+
+## Salvando Resultados
+dict_modelo_v3 <- data.frame(
+  Nome = 'modelo_v1',
+  Algoritmo = 'KNN com K ótimo',
+  ROC_AUC_Score = roc_auc_v3$auc, 
+  AUC_Score = auc_v3, 
+  Acuracia = acuracia_v3
+)
+
+# Concatenando com outro DataFrame que contém todos os resultados
+row.names(dict_modelo_v3) <- NULL
+df_modelos <- rbind(df_modelos, dict_modelo_v3)
+df_modelos
+
+
+
+rm(X_treino, y_treino, X_teste, y_teste, vizinhos, controle, modelo_knn, optimal_k, y_pred_v3, y_pred_proba_v3,
+   conf_matrix_v3, roc_auc_v3, auc_v3, acuracia_v3, dict_modelo_v3)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
 
 
 #### Visualizando os Resultados em um Dataframe
-
 df_modelos
 
 
