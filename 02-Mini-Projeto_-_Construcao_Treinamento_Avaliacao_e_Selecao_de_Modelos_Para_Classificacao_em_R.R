@@ -322,7 +322,7 @@ df %>% filter(is.na(Albumin_and_Globulin_Ratio))
 
 
 
-## Tratando Valores Duplicados
+## Verificando e Tratando Valores Duplicados
 
 # Exibindo as linhas com valores duplicados
 df %>% filter(duplicated(.))
@@ -333,7 +333,7 @@ df <- df %>%
 
 
 
-## Tratando Valores Outliers
+## Verificando e Tratando Valores Outliers
 
 # - Irá ser apresentado dois cenários e tomaremos decisões diferentes para cada um deles.
 
@@ -481,7 +481,7 @@ dim(df)
 
 
 
-#### Pré-Processamento de Dados Para Construção de Modelos de Machine Learning¶
+#### Pré-Processamento de Dados Para Construção de Modelos de Machine Learning
 
 # - Como vimos anteriormente ao aplicarmos o mapa de correlação as variáveis 'Direct_Bilirubin' e 'Total_Bilirubin' possuem uma alta correlação.
 # - Com isso foi tomada a decisão de remover umas das variáveis.
@@ -781,7 +781,7 @@ dict_modelo_v1 <- data.frame(
 df_modelos <- bind_rows(df_modelos, dict_modelo_v1)
 df_modelos
 
-rm(X_teste, y_pred_v1, y_pred_proba_v1, conf_matrix, roc_obj, acuracia_v1, roc_auc_v1, roc_curve, dict_modelo_v1, modelo_v1)
+rm(X_teste, y_pred_v1, y_pred_proba_v1, conf_matrix, roc_obj, acuracia_v1, roc_auc_v1, roc_curve, dict_modelo_v1)
 
 
 
@@ -791,52 +791,60 @@ rm(X_teste, y_pred_v1, y_pred_proba_v1, conf_matrix, roc_obj, acuracia_v1, roc_a
 # - Re-cria o modelo utilizando as 5 variáveis mais importantes
 
 
-## Seleção de Variáveis (Feature Selection)
-modelo_fs <- randomForest(Target ~ ., 
-                          data = dados_treino, 
-                          ntree = 100, nodesize = 10, importance = TRUE)
+# Extraindo coeficientes do modelo para o melhor lambda
+coeficientes <- as.matrix(coef(modelo_v1, s = best_lambda))
+rownames(coeficientes) <- c("(Intercept)", names(dados_treino)[-which(names(dados_treino) == "Target")])
 
-# Visualizando a importância das variáveis por números
-print(modelo_fs$importance)
-
-# Visualizando a importância das variáveis por gráficos
-varImpPlot(modelo_fs)
-
-importancia_ordenada <- modelo_fs$importance[order(-modelo_fs$importance[, 1]), , drop = FALSE]
-df_importancia <- data.frame(
-  Variavel = rownames(importancia_ordenada),
-  Importancia = importancia_ordenada[, 1]
+# Calculando a importância como o valor absoluto dos coeficientes
+importancias <- abs(coeficientes[-1, , drop = FALSE])  # Exclui o intercepto
+df_importancias <- data.frame(
+  Feature = rownames(importancias),
+  Importance = importancias[, 1]
 )
-ggplot(df_importancia, aes(x = reorder(Variavel, -Importancia), y = Importancia)) +
-  geom_bar(stat = "identity", fill = "skyblue") +
-  labs(title = "Importância das Variáveis", x = "Variável", y = "Importância") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 10))
+df_importancias <- df_importancias[order(-df_importancias$Importance), ]
 
-# Selecionando as 5 variáveis mais importantes
-vars_importantes <- rownames(importancia_ordenada)[1:5]
+# Visualizando por Números
+print(df_importancias)
 
-# Recriando o modelo usando apenas as variáveis mais importantes
+# Visualiando por Gráfico
+ggplot(df_importancias, aes(x = Importance, y = reorder(Feature, Importance))) +
+  geom_bar(stat = "identity", fill = "skyblue", orientation = "y") +
+  labs(title = "Importância das Variáveis", x = "Importância", y = "Variável") +
+  theme_minimal() +
+  theme(axis.text.y = element_text(angle = 0, hjust = 1))  # Melhorando a legibilidade dos rótulos
+
+
+## Selecionando as 5 variáveis mais importantes
+vars_importantes <- head(df_importancias$Feature, 5)
+
+
+## Recriando o modelo usando apenas as variáveis mais importantes
 dados_treino_importantes <- dados_treino[, c(vars_importantes, "Target")]
 
+# Recriando modelo_v2 com variáveis selecionadas
 modelo_v2 <- glmnet(
   x = as.matrix(dados_treino_importantes[, -which(names(dados_treino_importantes) == "Target")]),
   y = as.numeric(dados_treino_importantes$Target),
   alpha = 0,  # L2 penalidade como em LogisticRegression com 'l2'
-  lambda = best_lambda,  # Utilizando o melhor lambda encontrado anteriormente
+  lambda = best_lambda,
   family = "binomial",
   standardize = TRUE
 )
+modelo_v2
 
-# Preparando dados de teste para previsão com as variáveis mais importantes
+
+## Preparando dados de teste para previsão com as variáveis mais importantes
 dados_teste_importantes <- dados_teste[, c(vars_importantes, "Target")]
 X_teste_importantes <- as.matrix(dados_teste_importantes[, -which(names(dados_teste_importantes) == "Target")])
 
-# Previsões de Classe
+
+## Previsões de Classe
 y_pred_v2 <- predict(modelo_v2, newx = X_teste_importantes, s = "lambda.min", type = "class")
 y_pred_v2 <- as.factor(ifelse(y_pred_v2 == "1", "Class0", "Class1"))
 
 # Previsões de Probabilidade
 y_pred_proba_v2 <- predict(modelo_v2, newx = X_teste_importantes, s = "lambda.min", type = "response")
+
 
 ## Avaliação do Modelo
 conf_matrix_v2 <- confusionMatrix(y_pred_v2, dados_teste_importantes$Target)
@@ -857,8 +865,8 @@ dict_modelo_v2 <- data.frame(
 df_modelos <- bind_rows(df_modelos, dict_modelo_v2)
 df_modelos
 
-rm(modelo_fs, importancia_ordenada, df_importancia, vars_importantes, dados_treino_importantes, modelo_v2, dados_teste_importantes,
-   X_teste_importantes, y_pred_v2, y_pred_proba_v2, conf_matrix_v2, roc_obj_v2, roc_auc_v2, acuracia_v2, dict_modelo_v2)
+rm(modelo_v1, modelo_v2, dados_teste_importantes, X_teste_importantes, importancias, y_pred_v2, y_pred_proba_v2, conf_matrix_v2, roc_obj_v2,
+   roc_auc_v2, acuracia_v2, dict_modelo_v2, best_lambda, coeficientes, df_importancias, vars_importantes, dados_treino_importantes)
 
 
 
@@ -876,7 +884,9 @@ rm(modelo_fs, importancia_ordenada, df_importancia, vars_importantes, dados_trei
 
 
 
+#### Visualizando os Resultados em um Dataframe
 
+df_modelos
 
 
 
@@ -917,3 +927,4 @@ rm(modelo_fs, importancia_ordenada, df_importancia, vars_importantes, dados_trei
 # Essas diferenças refletem filosofias de design distintas e têm implicações práticas na maneira como você prepara e manipula dados para análises e
 # modelagem em cada linguagem.
 
+    
