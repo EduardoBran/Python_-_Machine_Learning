@@ -21,6 +21,9 @@ library(pROC)           # Para ROC e AUC
 library(glmnet)         # algoritmo para regressão logística com regularização
 library(randomForest)   # algoritmo de ML
 library(class)          # algortimo KNN
+library(rpart)          # algoritmo árvore de decisão (Decision Tree)
+library(rpart.plot)
+library(e1071)          # algoritmo SVM
 
 
 
@@ -1108,8 +1111,6 @@ row.names(dict_modelo_v3) <- NULL
 df_modelos <- rbind(df_modelos, dict_modelo_v3)
 df_modelos
 
-
-
 rm(X_treino, y_treino, X_teste, y_teste, vizinhos, controle, modelo_knn, optimal_k, y_pred_v3, y_pred_proba_v3,
    conf_matrix_v3, roc_auc_v3, auc_v3, acuracia_v3, dict_modelo_v3)
 
@@ -1117,21 +1118,333 @@ rm(X_treino, y_treino, X_teste, y_teste, vizinhos, controle, modelo_knn, optimal
 
 
 
+###  Modelo 4 com Decision Tree
+
+# - Na versão 4 do modelo usaremos um modelo de árvore de decisão.
+
+
+## Versão 1
+
+# Preparação dos dados
+X_treino <- dados_treino[, -ncol(dados_treino)]
+y_treino <- dados_treino$Target
+X_teste <- dados_teste[, -ncol(dados_teste)]
+y_teste <- dados_teste$Target
+
+# Definindo os hiperparâmetros
+tuned_params_DT <- expand.grid(cp = seq(0.01, 0.1, by = 0.01))
+
+# Definindo o controle do treino
+train_control <- trainControl(method = "cv", number = 10, search = "random", classProbs = TRUE, summaryFunction = twoClassSummary)
+
+# Treinando o modelo com RandomizedSearchCV
+set.seed(123)
+modelo_DT <- train(x = X_treino, y = y_treino,
+                   method = "rpart",
+                   trControl = train_control,
+                   tuneGrid = tuned_params_DT,
+                   metric = "ROC",
+                   maximize = TRUE)
+modelo_DT
+
+# Extraindo os melhores hiperparâmetros
+best_params <- modelo_DT$bestTune
+best_params
+
+# Treinando o modelo final com os melhores hiperparâmetros
+modelo_final_DT <- rpart(Target ~ ., data = dados_treino,
+                         control = rpart.control(cp = best_params$cp))
+
+
+## Previsões
+
+# Previsões com dados de teste
+y_pred_v1_DT <- predict(modelo_final_DT, X_teste, type = "class")
+print('Previsões de Classe')
+print(head(y_pred_v1_DT, 10))
+
+# Obtemos as previsões no formato de probabilidade para cada classe
+y_pred_proba_v1_DT <- predict(modelo_final_DT, X_teste, type = "prob")
+print('Previsões de Probabilidade')
+print(head(y_pred_proba_v1_DT, 10))
+
+# Obtemos as previsões no formato de probabilidade filtrando para a classe positiva
+y_pred_proba_v1_DT_pos <- y_pred_proba_v1_DT[, "Class1"]
+print('Previsões de Probabilidade para a Classe Positiva')
+print(head(y_pred_proba_v1_DT_pos, 10))
+
+
+## Avaliação do Modelo
+
+# Matriz de confusão
+conf_matrix <- confusionMatrix(y_pred_v1_DT, y_teste)
+print(conf_matrix)
+
+# Calculando a AUC
+roc_auc_v1_DT <- roc(y_teste, y_pred_proba_v1_DT_pos, levels = rev(levels(y_teste)))
+auc_v1_DT <- auc(roc_auc_v1_DT)
+print(paste("AUC:", auc_v1_DT))
+
+# Acurácia em teste
+acuracia_v1_DT <- conf_matrix$overall["Accuracy"]
+print(paste("Acurácia:", acuracia_v1_DT))
+
+# Curva ROC
+roc_curve <- roc(y_teste, y_pred_proba_v1_DT_pos)
+plot(roc_curve, col = "blue", lwd = 2, main = "Curva ROC")
+
+
+# Adiciona o Resultado das Métricas a uma Lista
+dict_modelo_v1_DT <- list(Nome = "modelo_v1_DT",
+                          Algoritmo = "Decision Tree",
+                          ROC_AUC_Score = roc_auc_v1_DT$auc,
+                          AUC_Score = auc_v1_DT,
+                          Acuracia = acuracia_v1_DT)
+print(dict_modelo_v1_DT)
+
+# Concatenando com outros dataframe com todos os resultados
+row.names(dict_modelo_v1_DT) <- NULL
+df_modelos <- rbind(df_modelos, dict_modelo_v1_DT)
+df_modelos
+
+
+
+## Versão 2
+
+# - Utiliza a técnica de Feature Selection
+
+# Verificando a importância das variáveis
+importancia <- varImp(modelo_DT, scale = FALSE)
+print(importancia)
+
+# Gráfico de importância das variáveis
+plot(importancia, main = "Importância das Variáveis")
+
+# Extraindo os nomes das 5 variáveis mais importantes
+top5_vars <- rownames(importancia$importance)[order(importancia$importance$Overall, decreasing = TRUE)[1:5]]
+print(top5_vars)
+
+# Recriando os dados de treino e teste com as 5 variáveis mais importantes
+X_treino_top5 <- X_treino[, top5_vars]
+X_teste_top5 <- X_teste[, top5_vars]
+
+# Treinando o novo modelo com as 5 variáveis mais importantes
+set.seed(123)
+modelo_DT_top5 <- train(x = X_treino_top5, y = y_treino,
+                        method = "rpart",
+                        trControl = train_control,
+                        tuneGrid = tuned_params_DT,
+                        metric = "ROC",
+                        maximize = TRUE)
+
+# Extraindo os melhores hiperparâmetros para o novo modelo
+best_params_top5 <- modelo_DT_top5$bestTune
+
+# Treinando o modelo final com os melhores hiperparâmetros
+modelo_final_DT_top5 <- rpart(Target ~ ., data = cbind(X_treino_top5, Target = y_treino),
+                              control = rpart.control(cp = best_params_top5$cp))
+
+
+## Previsões
+
+# Previsões com dados de teste
+y_pred_v2_DT <- predict(modelo_final_DT_top5, X_teste_top5, type = "class")
+print('Previsões de Classe')
+print(head(y_pred_v2_DT, 10))
+
+# Obtemos as previsões no formato de probabilidade para cada classe
+y_pred_proba_v2_DT <- predict(modelo_final_DT_top5, X_teste_top5, type = "prob")
+print('Previsões de Probabilidade')
+print(head(y_pred_proba_v2_DT, 10))
+
+# Obtemos as previsões no formato de probabilidade filtrando para a classe positiva
+y_pred_proba_v2_DT_pos <- y_pred_proba_v2_DT[, "Class1"]
+print('Previsões de Probabilidade para a Classe Positiva')
+print(head(y_pred_proba_v2_DT_pos, 10))
+
+
+## Avaliação do Modelo
+
+# Matriz de confusão
+conf_matrix_v2 <- confusionMatrix(y_pred_v2_DT, y_teste)
+print(conf_matrix_v2)
+
+# Calculando a AUC
+roc_auc_v2_DT <- roc(y_teste, y_pred_proba_v2_DT_pos, levels = rev(levels(y_teste)))
+auc_v2_DT <- auc(roc_auc_v2_DT)
+print(paste("AUC:", auc_v2_DT))
+
+# Acurácia em teste
+acuracia_v2_DT <- conf_matrix_v2$overall["Accuracy"]
+print(paste("Acurácia:", acuracia_v2_DT))
+
+# Curva ROC
+roc_curve_v2 <- roc(y_teste, y_pred_proba_v2_DT_pos)
+plot(roc_curve_v2, col = "blue", lwd = 2, main = "Curva ROC")
+
+# Adiciona o Resultado das Métricas a uma Lista
+dict_modelo_v2_DT <- list(Nome = "modelo_v2_DT",
+                          Algoritmo = "Decision Tree com Variáveis Selecionadas",
+                          ROC_AUC_Score = roc_auc_v2_DT$auc,
+                          AUC_Score = auc_v2_DT,
+                          Acuracia = acuracia_v2_DT)
+print(dict_modelo_v2_DT)
+
+# Concatenando com outros dataframe com todos os resultados
+row.names(dict_modelo_v2_DT) <- NULL
+df_modelos <- rbind(df_modelos, dict_modelo_v2_DT)
+df_modelos
+
+
+rm(X_treino, y_treino, X_teste, y_teste, tuned_params_DT, train_control, best_params, modelo_final_DT, y_pred_v1_DT,
+   y_pred_proba_v1_DT, conf_matrix, roc_auc_v1_DT, auc_v1_DT, acuracia_v1_DT, roc_curve, dict_modelo_v1_DT, importancia, modelo_DT,
+   top5_vars, X_treino_top5, X_teste_top5, modelo_DT_top5, best_params_top5, modelo_final_DT_top5, y_pred_v2_DT, y_pred_proba_v2_DT,
+   y_pred_proba_v2_DT_pos, y_pred_proba_v1_DT_pos, conf_matrix_v2, roc_auc_v2_DT, auc_v2_DT, acuracia_v2_DT, roc_curve_v2, dict_modelo_v2_DT)
 
 
 
 
+###  Modelo 5 com SVM
+
+# - Na versão 4 do modelo usaremos um modelo SVM.
 
 
+## Versão 1
 
 
+# Preparação dos dados
+X_treino <- dados_treino[, -ncol(dados_treino)]
+y_treino <- dados_treino$Target
+X_teste <- dados_teste[, -ncol(dados_teste)]
+y_teste <- dados_teste$Target
+
+# Definindo os hiperparâmetros
+tuned_params_SVM <- expand.grid(C = c(0.001, 0.01, 0.1, 1, 10),
+                                sigma = c(0.001, 0.01, 0.1, 1))
+
+# Definindo o controle do treino
+train_control <- trainControl(method = "cv", number = 5, search = "random", classProbs = TRUE, summaryFunction = twoClassSummary)
+
+# Treinando o modelo com RandomizedSearchCV
+set.seed(123)
+modelo_SVM <- train(x = X_treino, y = y_treino,
+                    method = "svmRadial",
+                    trControl = train_control,
+                    tuneGrid = tuned_params_SVM,
+                    metric = "ROC",
+                    maximize = TRUE)
+modelo_SVM
+
+# Extraindo os melhores hiperparâmetros
+best_params <- modelo_SVM$bestTune
+print(best_params)
+
+# Treinando o modelo final com os melhores hiperparâmetros
+modelo_final_SVM <- svm(x = X_treino, y = y_treino,
+                        type = "C-classification",
+                        kernel = "radial",
+                        cost = best_params$C,
+                        gamma = best_params$sigma,  # Note que aqui utilizamos 'sigma' que é equivalente a 'gamma'
+                        probability = TRUE)
+modelo_final_SVM
 
 
+## Previsões 
+
+# Previsões com dados de teste
+y_pred_SVM <- predict(modelo_final_SVM, X_teste)
+print('Previsões de Classe')
+print(head(y_pred_SVM, 10))
+
+# Obtemos as previsões no formato de probabilidade para cada classe
+y_pred_proba_SVM <- attr(predict(modelo_final_SVM, X_teste, probability = TRUE), "probabilities")
+print('Previsões de Probabilidade')
+print(head(y_pred_proba_SVM, 10))
+
+# Obtemos as previsões no formato de probabilidade filtrando para a classe positiva
+y_pred_proba_SVM_pos <- y_pred_proba_SVM[, "Class1"]
+print('Previsões de Probabilidade para a Classe Positiva')
+print(head(y_pred_proba_SVM_pos, 10))
+
+
+## Avaliação do Modelo
+
+# Matriz de confusão
+conf_matrix_SVM <- confusionMatrix(y_pred_SVM, y_teste)
+print(conf_matrix_SVM)
+
+# Calculando a AUC
+roc_auc_SVM <- roc(y_teste, y_pred_proba_SVM_pos, levels = rev(levels(y_teste)))
+auc_SVM <- auc(roc_auc_SVM)
+print(paste("AUC:", auc_SVM))
+
+# Acurácia em teste
+acuracia_SVM <- conf_matrix_SVM$overall["Accuracy"]
+print(paste("Acurácia:", acuracia_SVM))
+
+# Curva ROC
+roc_curve_SVM <- roc(y_teste, y_pred_proba_SVM_pos)
+plot(roc_curve_SVM, col = "blue", lwd = 2, main = "Curva ROC")
+
+# Adiciona o Resultado das Métricas a uma Lista
+dict_modelo_SVM <- list(Nome = "modelo_SVM",
+                        Algoritmo = "SVM",
+                        ROC_AUC_Score = roc_auc_SVM$auc,
+                        AUC_Score = auc_SVM,
+                        Acuracia = acuracia_SVM)
+print(dict_modelo_SVM)
+
+# Concatenando com outros dataframe com todos os resultados
+row.names(dict_modelo_SVM) <- NULL
+df_modelos <- rbind(df_modelos, dict_modelo_SVM)
+df_modelos
+
+rm(X_treino, y_treino, X_teste, y_teste, tuned_params_SVM, train_control, modelo_SVM, best_params, modelo_final_SVM, y_pred_SVM, y_pred_proba_SVM,
+   y_pred_proba_SVM_pos, conf_matrix_SVM, roc_auc_SVM, auc_SVM, acuracia_SVM, roc_curve_SVM, dict_modelo_SVM)
 
 
 
 #### Visualizando os Resultados em um Dataframe
 df_modelos
+
+
+
+#### Seleção do Melhor Modelo
+
+# - Usaremos o modelo que teve o maior AUC Score, por se tratar de uma métrica global.
+# - O AUC Score é o ideal para comparar modelos de diferentes algoritmos.
+
+
+# Visualizando melhor modelo
+
+
+
+## Previsões com o Melhor Modelo Treinado
+
+# Buscando Nome do Melhor Modelo
+
+
+
+# Carregamos o melhor modelo do disco
+
+
+
+# Criando Novos Dados Para Previsão
+
+
+
+# Preparando os Novos Dados
+
+
+
+# Previsões
+
+
+
+
+
+
+
 
 
 
