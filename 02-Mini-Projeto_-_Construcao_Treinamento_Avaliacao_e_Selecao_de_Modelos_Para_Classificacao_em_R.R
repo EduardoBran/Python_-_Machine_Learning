@@ -25,6 +25,9 @@ library(rpart)          # algoritmo árvore de decisão (Decision Tree)
 library(rpart.plot)
 library(e1071)          # algoritmo SVM
 
+library(reticulate)     # usar Python
+
+
 
 
 
@@ -1415,17 +1418,12 @@ df_modelos
 # - O AUC Score é o ideal para comparar modelos de diferentes algoritmos.
 
 
-# Visualizando melhor modelo
+# Selecionando e visualizando melhor modelo com base no AUC Score
+melhor_modelo <- df_modelos[which.max(df_modelos$AUC_Score), ]
+print(melhor_modelo)
 
 
-
-## Previsões com o Melhor Modelo Treinado
-
-# Buscando Nome do Melhor Modelo
-
-
-
-# Carregamos o melhor modelo do disco
+# Carregando Melhor Modelo
 
 
 
@@ -1439,12 +1437,12 @@ df_modelos
 
 # Previsões
 
+install.packages("reticulate")
 
 
 
 
-
-
+rm(melhor_modelo)
 
 
 
